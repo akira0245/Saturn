@@ -33,6 +33,7 @@ namespace Saturn
 		public AnimationTypes.AnimationType AnimationTypeTarget = AnimationTypes.AnimationType.Linear;
 		public bool LoopBack;
 		public bool animReverse;
+		public bool DOFAutoFocus = false;
 		//private Path3F eyePath = new Path3F() { SmoothEnds = true, PreLoop = CurveLoopType.Constant, PostLoop = CurveLoopType.Constant };
 		//private Path3F targetPath = new Path3F() { SmoothEnds = true, PreLoop = CurveLoopType.Constant, PostLoop = CurveLoopType.Constant };
 

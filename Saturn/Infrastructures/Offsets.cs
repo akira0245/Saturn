@@ -35,5 +35,20 @@ namespace Saturn.Infrastructures
 
 		[Function("E8 ?? ?? ?? ?? 41 FF C6 49 83 C7 04 49 83 C4 08 ")]
 		public static IntPtr WriteProjMatrix { get; private set; }
+
+		public delegate byte sub_140A58350(void* a1, long a2, long a3, long a4);
+
+		[Function("E8 ?? ?? ?? ?? 48 8B CB E8 ?? ?? ?? ?? 48 8B 0D ?? ?? ?? ?? 33 D2 ")]
+		public static IntPtr RefreshGroupPose { get; private set; }
+
+		[Function(" E8 ?? ?? ?? ?? 49 8D 57 10 48 8D 4D 00 ")]
+		public static IntPtr DOF { get; private set; }
+
+		[StaticAddress("48 8B 05 ? ? ? ? C6 40 2C ?")]
+		public static IntPtr DOFPtr { get; private set; }
+
+		[Offset("48 8D ? ? ? ? ? E8 ? ? ? ? 49 8D ? ? 48 8D ? ? E8", 3)]
+		public static int DOFPtrOffset { get; private set; }
+
 	}
 }

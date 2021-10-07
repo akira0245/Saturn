@@ -11,12 +11,12 @@ using static Saturn.Infrastructures.Offsets;
 
 namespace Saturn
 {
-	unsafe class MainCameraHook : IDisposable
+	unsafe class ViewMatrixHook : IDisposable
 	{
 		public delegate Matrix4x4* LootAtRHPrototype(Matrix4x4* viewMatrix, Vector3* eye, Vector3* target, Vector3* unk);
 		public static Hook<LootAtRHPrototype> LookAtRHHook { get; set; }
 
-		private MainCameraHook()
+		private ViewMatrixHook()
 		{
 			api.Framework.Update += Framework_Update;
 
@@ -80,7 +80,7 @@ namespace Saturn
 			count = count1 = 0;
 		}
 
-		public static MainCameraHook Instance { get; } = new MainCameraHook();
+		public static ViewMatrixHook Instance { get; } = new ViewMatrixHook();
 
 		public int count;
 		public int count1;
@@ -90,6 +90,7 @@ namespace Saturn
 		public Vector3 Target { get; private set; }
 		public Vector3 Eye { get; private set; }
 		public Vector3 Unk { get; private set; }
+		public Vector3 LookAtDirection => Eye - Target;
 
 		public event OnCamControl DoCamControl;
 
