@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net5.0-windows</TargetFramework>
@@ -13,14 +13,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="DigitalRune.Engine" Version="1.20.0" />
-    <PackageReference Include="QuickGraph" Version="3.6.61119.7" />
-  </ItemGroup>
-
-  <ItemGroup>
     <Reference Include="Dalamud">
       <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\Dalamud.dll</HintPath>
       <Private>false</Private>
+    </Reference>
+    <Reference Include="DigitalRune.Mathematics">
+      <HintPath>..\lib\DigitalRune.Mathematics.dll</HintPath>
     </Reference>
     <Reference Include="FFXIVClientStructs">
       <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\FFXIVClientStructs.dll</HintPath>
@@ -41,6 +39,9 @@
     <Reference Include="Lumina.Excel">
       <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\Lumina.Excel.dll</HintPath>
       <Private>false</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\Newtonsoft.Json.dll</HintPath>
     </Reference>
     <Reference Include="SharpDX">
       <HintPath>..\..\..\..\Downloads\Compressed\dalamud-artifactbuild\dalamud-artifact\SharpDX.dll</HintPath>
@@ -91,6 +92,7 @@
     </Reference>
     <Reference Include="SharpDX.Mathematics">
       <HintPath>..\..\..\..\Downloads\Compressed\dalamud-artifactbuild\dalamud-artifact\SharpDX.Mathematics.dll</HintPath>
+      <Private>false</Private>
     </Reference>
   </ItemGroup>
 </Project>

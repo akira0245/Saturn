@@ -24,12 +24,10 @@ namespace Saturn.Infrastructures
 		public delegate IntPtr Apricot__Engine__Core__GetSingleton();
 		[Function("E8 ?? ?? ?? ?? 48 8D 4C 24 ?? 48 89 4c 24 ?? 4C 8D 4D ?? 4C 8D 44 24 ??")]
 		public static IntPtr GetMatrixSingleton { get; private set; }
-		public static Hook<Apricot__Engine__Core__GetSingleton> GetMatrixSingletonHook{ get; set; }
+		public static Hook<Apricot__Engine__Core__GetSingleton> GetMatrixSingletonHook { get; set; }
 
-		public delegate Matrix4x4* LootAtRHPrototype(Matrix4x4* viewMatrix, Vector3* eye, Vector3* target, Vector3* unk);
 		[Function("E8 ?? ?? ?? ?? 4C 8D 45 A0 48 8D 53 10")]
 		public static IntPtr LookAtRH { get; private set; }
-		public static Hook<LootAtRHPrototype> LookAtRHHook { get; set; }
 
 
 		[StaticAddress("48 8D 35 ?? ?? ?? ?? 48 8B 34 C6 F3")]

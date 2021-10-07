@@ -1,12 +1,15 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Numerics;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface.Colors;
 using Dalamud.Logging;
+using DigitalRune.Collections;
 using DigitalRune.Mathematics.Algebra;
 using DigitalRune.Mathematics.Interpolation;
 using ImGuiNET;
@@ -38,36 +41,218 @@ namespace Saturn
 		Config c => Config.Instance;
 		private Vector3 upVector;
 
-		private float speed = 1;
+		private float speed = 0.1f;
 		private float radian = (float)(Math.PI * 2);
 		private Vector3 axis = Vector3.UnitY;
-		private Path3F path = new Path3F() { SmoothEnds = true , PreLoop = CurveLoopType.Constant, PostLoop = CurveLoopType.Constant};
+
+		private bool repeat = false;
+
+		private float prog = 0;
+
+		private Path3F eyePath = new Path3F() { SmoothEnds = true, PreLoop = CurveLoopType.Constant, PostLoop = CurveLoopType.Oscillate };
+		private Path3F targetPath = new Path3F() { SmoothEnds = true, PreLoop = CurveLoopType.Constant, PostLoop = CurveLoopType.Oscillate };
+
+		private bool freecaming;
+		private Vector3 freeEye;
+		private Vector3 freeTarget;
+		private Vector3 currentCamDirection;
 
 		private void PathWindow()
 		{
-			if (Begin("DigitalRune"))
+			unsafe
 			{
-				var instanceEye = MainCameraHook.Instance.Eye;
-				if (Button($"ADD {instanceEye}###addpoint") || IsKeyPressed((int)VirtualKey.C, true))
+				if (ImGui.Begin("freeCam control"))
 				{
-					path.Add(new PathKey3F { Parameter = path.Count, Interpolation = SplineInterpolation.CatmullRom, Point = instanceEye.ToVector3F() });
-				}
-				if (Button($"Parameterize"))
-				{
-					path.ParameterizeByLength(10, 0.01f);
-				}
-				if (Button($"clear"))
-				{
-					path.Clear();
-				}
+					if (Button("Begin freecam"))
+					{
+						freecaming = true;
+						freeEye = MainCameraHook.Instance.Eye;
+						freeTarget = MainCameraHook.Instance.Target;
+						MainCameraHook.Instance.DoCamControl += ((matrix, eye, target, unk) =>
+						{
+							currentCamDirection = Vector3.Normalize(*target - *eye);
+							*eye = freeEye;
+							*target = freeEye + currentCamDirection;
+							*unk = Vector3.UnitY;
+						});
+					}
 
-				foreach (var p in path)
-				{
-					DrawVector(p.Point.ToVector3(), ImGuiColors.ParsedBlue);
+					if (freecaming)
+					{
+						ImGui.GetIO().WantTextInput = true;
+						var delta = IsKeyDown((int)VirtualKey.SHIFT) ? currentCamDirection : IsKeyDown((int)VirtualKey.CONTROL) ? currentCamDirection * 0.04f : currentCamDirection * 0.2f;
+						var deltaY = IsKeyDown((int)VirtualKey.SHIFT) ? Vector3.UnitY : IsKeyDown((int)VirtualKey.CONTROL) ? Vector3.UnitY * 0.04f : Vector3.UnitY * 0.2f;
+						if (IsKeyDown((int)VirtualKey.W)) freeEye += delta;
+						if (IsKeyDown((int)VirtualKey.S)) freeEye -= delta;
+						if (IsKeyDown((int)VirtualKey.A)) freeEye -= Vector3.Cross(delta, Vector3.UnitY);
+						if (IsKeyDown((int)VirtualKey.D)) freeEye += Vector3.Cross(delta, Vector3.UnitY);
+						if (IsKeyDown((int)VirtualKey.SPACE)) freeEye += deltaY;
+						if (IsKeyDown((int)VirtualKey.Z)) freeEye -= deltaY;
+
+
+						if (IsKeyDown((int)VirtualKey.ESCAPE))
+						{
+							freecaming = false;
+							MainCameraHook.Instance.ClearControls();
+						}
+
+					}
 				}
 			}
-
 			End();
+
+			if (Begin("DigitalRune"))
+			{
+
+				if (Button("PrintXml"))
+				{
+					try
+					{
+						PluginLog.Information(eyePath.XmlSerializeString());
+					}
+					catch (Exception e)
+					{
+						PluginLog.Error(e.ToString());
+					}
+				}
+
+				if (repeat)
+				{
+					repeat = api.KeyState[VirtualKey.C];
+				}
+
+				if (Button($"add key point (KEY C)###addpoint") || api.KeyState[VirtualKey.C] && !repeat)
+				{
+
+					eyePath.Add(new PathKey3F { Parameter = eyePath.Count, Interpolation = SplineInterpolation.CatmullRom, Point = freecaming ? freeEye.ToVector3F() : MainCameraHook.Instance.Eye.ToVector3F() });
+					targetPath.Add(new PathKey3F { Parameter = eyePath.Count, Interpolation = SplineInterpolation.CatmullRom, Point = freecaming ? (currentCamDirection).ToVector3F() : MainCameraHook.Instance.Target.ToVector3F() });
+					repeat = true;
+				}
+
+				if (Button($"parameterize path"))
+				{
+					Task.Run(() =>
+					{
+						var startNew = Stopwatch.StartNew();
+						eyePath.ParameterizeByLength(100, 0.00001f);
+						targetPath.ParameterizeByLength(100, 0.00001f);
+						PluginLog.Warning($"Parameterize complete in {startNew.Elapsed}");
+					});
+				}
+				if (Button($"CatmullRom"))
+				{
+					foreach (var pathKey3F in eyePath)
+					{
+						pathKey3F.Interpolation = SplineInterpolation.CatmullRom;
+					}
+					foreach (var pathKey3F in targetPath)
+					{
+						pathKey3F.Interpolation = SplineInterpolation.CatmullRom;
+					}
+				}
+				SameLine();
+				if (Button($"BSpline"))
+				{
+					foreach (var pathKey3F in eyePath)
+					{
+						pathKey3F.Interpolation = SplineInterpolation.BSpline;
+					}
+					foreach (var pathKey3F in targetPath)
+					{
+						pathKey3F.Interpolation = SplineInterpolation.BSpline;
+					}
+				}
+				SameLine();
+				if (Button($"Hermite"))
+				{
+					foreach (var pathKey3F in eyePath)
+					{
+						pathKey3F.Interpolation = SplineInterpolation.Hermite;
+					}
+					foreach (var pathKey3F in targetPath)
+					{
+						pathKey3F.Interpolation = SplineInterpolation.Hermite;
+					}
+				}
+				SameLine();
+				if (Button($"Linear"))
+				{
+					foreach (var pathKey3F in eyePath)
+					{
+						pathKey3F.Interpolation = SplineInterpolation.Linear;
+					}
+					foreach (var pathKey3F in targetPath)
+					{
+						pathKey3F.Interpolation = SplineInterpolation.Linear;
+					}
+				}
+				if (Button($"clear path (KEY V)") || api.KeyState[VirtualKey.V])
+				{
+					eyePath.Clear();
+					targetPath.Clear();
+				}
+				SliderFloat("speed", ref speed, 0.01f, 10, speed.ToString(), ImGuiSliderFlags.Logarithmic | ImGuiSliderFlags.NoRoundToFormat);
+				SliderFloat3("vector3", ref axis, -1, 1);
+				TextUnformatted($"{eyePath.Count} {eyePath.LastOrDefault()?.Parameter}");
+				TextUnformatted($"{targetPath.Count} {targetPath.LastOrDefault()?.Parameter}");
+
+
+				//DrawVector(axis, api.ClientState.LocalPlayer.Position, ImGuiColors.DalamudYellow);
+				//DrawVector(Vector3.Normalize(Vector3.Cross(axis, Vector3.UnitX)), api.ClientState.LocalPlayer.Position, ImGuiColors.DalamudRed);
+				//DrawVector(Vector3.Normalize(Vector3.Cross(axis, Vector3.UnitY)), api.ClientState.LocalPlayer.Position, ImGuiColors.HealerGreen);
+				//DrawVector(Vector3.Normalize(Vector3.Cross(axis, Vector3.UnitZ)),api.ClientState.LocalPlayer.Position, ImGuiColors.TankBlue);
+
+
+				DrawPath(eyePath, ImGuiColors.TankBlue, ImGuiColors.DalamudViolet, ImGuiColors.DalamudRed, out _currentEye);
+				DrawPath(targetPath, ImGuiColors.ParsedPurple, ImGuiColors.DalamudViolet, ImGuiColors.ParsedGreen, out _currentTarget);
+
+				if (!api.GameGui.GameUiHidden)
+				{
+					try
+					{
+						api.GameGui.WorldToScreen(_currentEye.Value, out var eye);
+						api.GameGui.WorldToScreen(_currentTarget.Value, out var target);
+						BDL.AddLine(eye, target, GetColorU32(ImGuiColors.DalamudYellow));
+					}
+					catch (Exception e)
+					{
+
+					}
+				}
+			}
+			//ImGui.GetIO().WantCaptureKeyboard = false;
+			//ImGui.CaptureKeyboardFromApp(false);
+			End();
+		}
+
+
+		private ImDrawListPtr BDL => ImGui.GetBackgroundDrawList(ImGui.GetMainViewport());
+		private void DrawPath(Path3F path3F, Vector4 tankBlue, Vector4 dalamudViolet, Vector4 dalamudRed, out Vector3? currentValue)
+		{
+			currentValue = null;
+			if (path3F.Any())
+			{
+				var length = path3F.Last().Parameter;
+				var vector3F = path3F.GetPoint(QuickAnimation(speed) * length);
+				if (!api.GameGui.GameUiHidden)
+				{
+					foreach (var p in path3F)
+					{
+						DrawVector(p.Point.ToVector3(), tankBlue, 3.5f);
+					}
+
+					var l = (int)length;
+					for (int i = 0; i < l; i++)
+					{
+						var point = path3F.GetPoint(length * i / l);
+						DrawVector(point.ToVector3(), dalamudViolet, 2);
+					}
+
+					DrawVector(vector3F.ToVector3(), dalamudRed, 5);
+				}
+
+				currentValue = vector3F.ToVector3();
+			}
 		}
 
 		private unsafe void UiBuilder_Draw()
@@ -104,73 +289,74 @@ namespace Saturn
 
 			if (Begin(nameof(Saturn)))
 			{
-				if (Button("record current cam position"))
+				//if (Button("record current cam position"))
+				//{
+				//	c.CamPosList.Add((MainCameraHook.Instance.Eye, MainCameraHook.Instance.Target));
+				//}
+
+				//SameLine();
+
+				//if (Button("remove last"))
+				//{
+				//	try
+				//	{
+				//		c.CamPosList.RemoveAt(c.CamPosList.Count - 1);
+				//	}
+				//	catch (Exception e)
+				//	{
+				//		//PluginLog.Warning(e.ToString());
+				//	}
+				//}
+
+				if (Button("begin control"))
 				{
-					c.CamPosList.Add((MainCameraHook.Instance.Eye, MainCameraHook.Instance.Target));
-				}
-
-				SameLine();
-
-				if (Button("remove last"))
-				{
-					try
-					{
-						c.CamPosList.RemoveAt(c.CamPosList.Count - 1);
-					}
-					catch (Exception e)
-					{
-						//PluginLog.Warning(e.ToString());
-					}
-				}
-
-				if (Button("add control"))
-				{
-					//upVector = MainCameraHook.Instance.Unk;
-					try
-					{
-						easingEye = AnimationTypes.GetEasing(c.AnimationTypeEye, c.animationTimeMs);
-						easingEye.Point1 = MainCameraHook.Instance.Eye;
-						easingEye.Point2 = c.CamPosList[^1].eye;
+					////upVector = MainCameraHook.Instance.Unk;
+					//try
+					//{
+					//	easingEye = AnimationTypes.GetEasing(c.AnimationTypeEye, c.animationTimeMs);
+					//	easingEye.Point1 = MainCameraHook.Instance.Eye;
+					//	easingEye.Point2 = c.CamPosList[^1].eye;
 
 
-						easingTarget = AnimationTypes.GetEasing(c.AnimationTypeTarget, c.animationTimeMs);
-						easingTarget.Point1 = MainCameraHook.Instance.Target;
-						easingTarget.Point2 = c.CamPosList[^1].target;
+					//	easingTarget = AnimationTypes.GetEasing(c.AnimationTypeTarget, c.animationTimeMs);
+					//	easingTarget.Point1 = MainCameraHook.Instance.Target;
+					//	easingTarget.Point2 = c.CamPosList[^1].target;
 
-						if (c.animReverse)
-						{
-							(easingEye.Point2, easingEye.Point1) = (easingEye.Point1, easingEye.Point2);
-							(easingTarget.Point2, easingTarget.Point1) = (easingTarget.Point1, easingTarget.Point2);
-						}
-					}
-					catch (Exception e)
-					{
-						PluginLog.Error(e.ToString());
-					}
+					//	if (c.animReverse)
+					//	{
+					//		(easingEye.Point2, easingEye.Point1) = (easingEye.Point1, easingEye.Point2);
+					//		(easingTarget.Point2, easingTarget.Point1) = (easingTarget.Point1, easingTarget.Point2);
+					//	}
+					//}
+					//catch (Exception e)
+					//{
+					//	PluginLog.Error(e.ToString());
+					//}
 
 					MainCameraHook.Instance.DoCamControl += Instance_DoCamControl;
 				}
 
 				SameLine();
 				if (Button("clear control")) MainCameraHook.Instance.ClearControls();
-				SameLine();
-				if (Button("reset control")) upVector = Vector3.UnitY;
-				SameLine();
-				Checkbox("Loopback", ref c.LoopBack);
+				//SameLine();
+				//if (Button("reset control")) upVector = Vector3.UnitY;
+				//SameLine();
+				//Checkbox("Loopback", ref c.LoopBack);
 
-				DragInt("Speed in MS", ref c.animationTimeMs, 10, 0, 60000);
-				SliderFloat3("upVector", ref upVector, -1, 1);
-				if (IsItemClicked(ImGuiMouseButton.Right))
-				{
-					upVector = Vector3.UnitY;
-				}
+				//DragInt("Speed in MS", ref c.animationTimeMs, 10, 0, 60000);
+				//SliderFloat3("upVector", ref upVector, -1, 1);
+				//if (IsItemClicked(ImGuiMouseButton.Right))
+				//{
+				//	upVector = Vector3.UnitY;
+				//}
 
-				imguiUtil.EnumCombo("EYE ANIM", ref c.AnimationTypeEye, ImGuiComboFlags.HeightLarge);
-				imguiUtil.EnumCombo("TARGET ANIM", ref c.AnimationTypeTarget, ImGuiComboFlags.HeightLarge);
-				Checkbox("REVERSE", ref c.animReverse);
+				//imguiUtil.EnumCombo("EYE ANIM", ref c.AnimationTypeEye, ImGuiComboFlags.HeightLarge);
+				//imguiUtil.EnumCombo("TARGET ANIM", ref c.AnimationTypeTarget, ImGuiComboFlags.HeightLarge);
+				//Checkbox("REVERSE", ref c.animReverse);
 
-				var label = MainCameraHook.Instance.MatrixPtr.ToInt64().ToString("X");
-				CopyButton(label, 1111);
+				//var label = MainCameraHook.Instance.MatrixPtr.ToInt64().ToString("X");
+				//CopyButton(label, 1111);
+
 				TextUnformatted($"U:{MainCameraHook.Instance.Unk}");
 				TextUnformatted($"E:{MainCameraHook.Instance.Eye}");
 				TextUnformatted($"T:{MainCameraHook.Instance.Target}");
@@ -272,11 +458,11 @@ namespace Saturn
 			}
 		}
 
-		private static void DrawVector(Vector3 vector, Vector4 color)
+		private static void DrawVector(Vector3 vector, Vector4 color, float radius = 4)
 		{
 			if (api.GameGui.WorldToScreen(vector, out var screenPos))
 			{
-				GetForegroundDrawList(GetMainViewport()).AddCircleFilled(screenPos, 4, ColorConvertFloat4ToU32(color));
+				GetForegroundDrawList(GetMainViewport()).AddCircleFilled(screenPos, radius, ColorConvertFloat4ToU32(color));
 			}
 		}
 
@@ -300,13 +486,22 @@ namespace Saturn
 		private float farPlaneDistance;
 		private float width;
 		private float height;
+		private Vector3? _currentEye;
+		private Vector3? _currentTarget;
 
 		private unsafe void Instance_DoCamControl(Matrix4x4* matrix, System.Numerics.Vector3* eye, System.Numerics.Vector3* target, System.Numerics.Vector3* unk)
 		{
-			var eye1 = GetEaseVector(easingEye);
-			var target1 = GetEaseVector(easingTarget);
+			//var eye1 = GetEaseVector(easingEye);
+			//var target1 = GetEaseVector(easingTarget);
 
-			*matrix = Matrix4x4.CreateLookAt(eye1, target1, upVector);
+			if (_currentTarget != null)
+				if (_currentEye != null)
+				{
+					*eye = _currentEye.Value;
+					*target = _currentTarget.Value;
+					*unk = Vector3.UnitY;
+				}
+			//*matrix = Matrix4x4.CreateLookAt(_currentTarget.Value, Vector3.UnitY);
 		}
 
 		private unsafe Vector3 GetEaseVector<T>(T easing) where T : EasingV3

@@ -20,7 +20,6 @@ namespace Saturn
 		{
 			Ui.Instance.Dispose();
 			MainCameraHook.Instance.Dispose();
-			OffsetManager.CleanUpHooks();
 			Config.Save();
 			api.Dispose();
 		}

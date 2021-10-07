@@ -71,22 +71,22 @@ namespace Saturn.Infrastructures
 
 		public static void CleanUpHooks()
 		{
-			typeof(Offsets).GetFields(BindingFlags.Static | BindingFlags.Public)
+			typeof(Offsets).GetFields(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
 				.Where(i => i.FieldType.GetInterfaces().Any(j => j.FullName == "System.IDisposable")).ToList()
 				.ForEach(i =>
 				{
 					try
 					{
-						PluginLog.Debug($"Disposing {i}");
+						PluginLog.Warning($"Disposing {i}");
 						((IDisposable)i.GetValue(null))?.Dispose();
 					}
 					catch (Exception e)
 					{
-						PluginLog.Error(e,"error when disposing hook");
+						PluginLog.Error(e, "error when disposing");
 					}
 				});
 
-			typeof(Offsets).GetProperties(BindingFlags.Static | BindingFlags.Public)
+			typeof(Offsets).GetProperties(BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic)
 				.Where(i => i.PropertyType.GetInterfaces().Any(j => j.FullName == "System.IDisposable")).ToList()
 				.ForEach(i =>
 				{
@@ -97,7 +97,7 @@ namespace Saturn.Infrastructures
 					}
 					catch (Exception e)
 					{
-						PluginLog.Error(e, "error when disposing hook");
+						PluginLog.Error(e, "error when disposing");
 					}
 				});
 		}

@@ -13,10 +13,8 @@ namespace Saturn
 {
 	unsafe class MainCameraHook : IDisposable
 	{
-
-
-
-
+		public delegate Matrix4x4* LootAtRHPrototype(Matrix4x4* viewMatrix, Vector3* eye, Vector3* target, Vector3* unk);
+		public static Hook<LootAtRHPrototype> LookAtRHHook { get; set; }
 
 		private MainCameraHook()
 		{
@@ -55,7 +53,7 @@ namespace Saturn
 					//	PluginLog.Information("docamcotrol");
 
 					//}
-					PluginLog.Information($"{DoCamControl?.Method} {DoCamControl?.Target} {DoCamControl}");
+					//PluginLog.Information($"{DoCamControl?.Method} {DoCamControl?.Target} {DoCamControl}");
 
 					//if (DoCamControl..)
 					//{
@@ -63,6 +61,8 @@ namespace Saturn
 					//	PluginLog.Information($"doing cam control");
 					//	return viewmatrix;
 					//}
+
+					DoCamControl?.Invoke(viewmatrix, eye, target, unk);
 				}
 
 				return LookAtRHHook.Original(viewmatrix, eye, target, unk);
@@ -97,8 +97,9 @@ namespace Saturn
 
 		public void Dispose()
 		{
-			ClearControls();
 			api.Framework.Update -= Framework_Update;
+			LookAtRHHook?.Dispose();
+			ClearControls();
 		}
 
 		public void ClearControls() => DoCamControl = delegate { };
