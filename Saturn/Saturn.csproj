@@ -1,0 +1,96 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0-windows</TargetFramework>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DigitalRune.Engine" Version="1.20.0" />
+    <PackageReference Include="QuickGraph" Version="3.6.61119.7" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Dalamud">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\Dalamud.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="FFXIVClientStructs">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\FFXIVClientStructs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ImGui.NET">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\ImGui.NET.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ImGuiScene">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\ImGuiScene.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Lumina">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\Lumina.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Lumina.Excel">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\Lumina.Excel.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SharpDX">
+      <HintPath>..\..\..\..\Downloads\Compressed\dalamud-artifactbuild\dalamud-artifact\SharpDX.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SharpDX.Direct3D11">
+      <HintPath>..\..\..\..\Downloads\Compressed\dalamud-artifactbuild\dalamud-artifact\SharpDX.Direct3D11.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SharpDX.DXGI">
+      <HintPath>..\..\..\..\Downloads\Compressed\dalamud-artifactbuild\dalamud-artifact\SharpDX.DXGI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>    <Reference Include="Dalamud">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\Dalamud.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="FFXIVClientStructs">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\FFXIVClientStructs.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ImGui.NET">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\ImGui.NET.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="ImGuiScene">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\ImGuiScene.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Lumina">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\Lumina.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="Lumina.Excel">
+      <HintPath>..\..\..\..\Downloads\DalamudCN\6.0.0.0\Lumina.Excel.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SharpDX">
+      <HintPath>..\..\..\..\Downloads\Compressed\dalamud-artifactbuild\dalamud-artifact\SharpDX.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SharpDX.Direct3D11">
+      <HintPath>..\..\..\..\Downloads\Compressed\dalamud-artifactbuild\dalamud-artifact\SharpDX.Direct3D11.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SharpDX.DXGI">
+      <HintPath>..\..\..\..\Downloads\Compressed\dalamud-artifactbuild\dalamud-artifact\SharpDX.DXGI.dll</HintPath>
+      <Private>false</Private>
+    </Reference>
+    <Reference Include="SharpDX.Mathematics">
+      <HintPath>..\..\..\..\Downloads\Compressed\dalamud-artifactbuild\dalamud-artifact\SharpDX.Mathematics.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+</Project>
