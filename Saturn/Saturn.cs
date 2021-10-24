@@ -24,13 +24,12 @@ namespace Saturn
 			api.Dispose();
 		}
 
-		[Command("/freecam")]
-		public void Freecam(string cmd, string args)
-		{
-			Ui.Instance.freecaming ^= true;
-		}
-
-
+		[Command("/freecam")] public void freecam(string cmd, string args) => Ui.Instance.freecaming ^= true;
+		[Command("/saturn")] public void saturn(string cmd, string args) => Ui.Instance.visible ^= true;
+		[Command("/pathadd")] public void pathAdd(string cmd, string args) => Ui.Instance.AddCurrentCamPositionToPath();
+		[Command("/pathclear")] public void pathClear(string cmd, string args) => Ui.Instance.CameraPathClear();
+		[Command("/animbegin")] public void animBegin(string cmd, string args) =>  Ui.Instance.CameraBeginControl();
+		[Command("/animstop")] public void animStop(string cmd, string args) => ViewMatrixHook.Instance.ClearControls();
 
 
 		public void Dispose()

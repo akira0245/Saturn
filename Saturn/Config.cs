@@ -34,6 +34,7 @@ namespace Saturn
 		public bool LoopBack;
 		public bool animReverse;
 		public bool DOFAutoFocus = false;
+		public float Aperture = 0.8f;
 		//private Path3F eyePath = new Path3F() { SmoothEnds = true, PreLoop = CurveLoopType.Constant, PostLoop = CurveLoopType.Constant };
 		//private Path3F targetPath = new Path3F() { SmoothEnds = true, PreLoop = CurveLoopType.Constant, PostLoop = CurveLoopType.Constant };
 

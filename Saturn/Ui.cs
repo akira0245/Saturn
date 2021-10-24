@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using Dalamud.Game.ClientState.Keys;
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
+using Dalamud.Interface.ImGuiFileDialog;
 using Dalamud.Logging;
 using DigitalRune.Collections;
 using DigitalRune.Mathematics.Algebra;
@@ -25,7 +26,7 @@ using im = ImGuiNET.ImGui;
 
 namespace Saturn
 {
-	class Ui : IDisposable
+	unsafe class Ui : IDisposable
 	{
 		public static Ui Instance { get; } = new Ui();
 
@@ -90,6 +91,8 @@ namespace Saturn
 		private Vector3 freeTarget;
 		private Vector3 currentCamDirection;
 
+		private List<bool> ViewingPath = new List<bool>();
+
 		private void PathWindow()
 		{
 
@@ -103,15 +106,13 @@ namespace Saturn
 				TextUnformatted("Path:");
 				if (Button("Add key point (KEY C)") || api.KeyState[VirtualKey.C] && !repeat)
 				{
-					eyePath.Add(new PathKey3F { Parameter = eyePath.Count, Interpolation = SplineInterpolation.CatmullRom, Point = freecaming ? freeEye.ToVector3F() : ViewMatrixHook.Instance.Eye.ToVector3F() });
-					targetPath.Add(new PathKey3F { Parameter = eyePath.Count, Interpolation = SplineInterpolation.CatmullRom, Point = freecaming ? (freeEye + currentCamDirection * 10000).ToVector3F() : ViewMatrixHook.Instance.Target.ToVector3F() });
+					AddCurrentCamPositionToPath();
 					repeat = true;
 				}
 				SameLine();
 				if (Button($"Clear (KEY V)") || api.KeyState[VirtualKey.V])
 				{
-					eyePath.Clear();
-					targetPath.Clear();
+					CameraPathClear();
 				}
 				SameLine();
 				if (Button($"Parameterize"))
@@ -119,68 +120,100 @@ namespace Saturn
 					Task.Run(() =>
 					{
 						var startNew = Stopwatch.StartNew();
-						eyePath.ParameterizeByLength(100, 0.01f);
-						targetPath.ParameterizeByLength(100, 0.01f);
-						PluginLog.Warning($"Parameterize complete in {startNew.Elapsed}");
+						eyePath.ParameterizeByLength(3000, 0.01f);
+						PluginLog.Warning($"eyePath parameterize complete in {startNew.Elapsed}");
+					});
+					Task.Run(() =>
+					{
+						var startNew = Stopwatch.StartNew();
+						targetPath.ParameterizeByLength(3000, 0.01f);
+						PluginLog.Warning($"targetPath parameterize complete in {startNew.Elapsed}");
 					});
 				}
 				Separator();
 				TextUnformatted("Spline Interpolation:");
 				if (Button($"CatmullRom (default)"))
 				{
-					foreach (var pathKey3F in eyePath)
-					{
-						pathKey3F.Interpolation = SplineInterpolation.CatmullRom;
-					}
-					foreach (var pathKey3F in targetPath)
-					{
-						pathKey3F.Interpolation = SplineInterpolation.CatmullRom;
-					}
+					foreach (var pathKey3F in eyePath) pathKey3F.Interpolation = SplineInterpolation.CatmullRom;
+					foreach (var pathKey3F in targetPath) pathKey3F.Interpolation = SplineInterpolation.CatmullRom;
 				}
 				SameLine();
 				if (Button($"BSpline"))
 				{
-					foreach (var pathKey3F in eyePath)
-					{
-						pathKey3F.Interpolation = SplineInterpolation.BSpline;
-					}
-					foreach (var pathKey3F in targetPath)
-					{
-						pathKey3F.Interpolation = SplineInterpolation.BSpline;
-					}
+					foreach (var pathKey3F in eyePath) pathKey3F.Interpolation = SplineInterpolation.BSpline;
+					foreach (var pathKey3F in targetPath) pathKey3F.Interpolation = SplineInterpolation.BSpline;
 				}
 				SameLine();
 				if (Button($"Hermite"))
 				{
-					foreach (var pathKey3F in eyePath)
-					{
-						pathKey3F.Interpolation = SplineInterpolation.Hermite;
-					}
-					foreach (var pathKey3F in targetPath)
-					{
-						pathKey3F.Interpolation = SplineInterpolation.Hermite;
-					}
+					foreach (var pathKey3F in eyePath) pathKey3F.Interpolation = SplineInterpolation.Hermite;
+					foreach (var pathKey3F in targetPath) pathKey3F.Interpolation = SplineInterpolation.Hermite;
 				}
 				SameLine();
 				if (Button($"Linear"))
 				{
-					foreach (var pathKey3F in eyePath)
-					{
-						pathKey3F.Interpolation = SplineInterpolation.Linear;
-					}
-					foreach (var pathKey3F in targetPath)
-					{
-						pathKey3F.Interpolation = SplineInterpolation.Linear;
-					}
+					foreach (var pathKey3F in eyePath) pathKey3F.Interpolation = SplineInterpolation.Linear;
+					foreach (var pathKey3F in targetPath) pathKey3F.Interpolation = SplineInterpolation.Linear;
 				}
 				Separator();
 
 				SliderFloat("speed", ref speed, 0.01f, 10, speed.ToString(), ImGuiSliderFlags.Logarithmic | ImGuiSliderFlags.NoRoundToFormat);
 
 				TextUnformatted($"EyePath:\nCount: {eyePath.Count}\tLength: {eyePath.LastOrDefault()?.Parameter}");
-				SameLine(GetWindowContentRegionWidth()/2);
+				SameLine(GetWindowContentRegionWidth() / 2);
 				TextUnformatted($"TargetPath:\nCount: {targetPath.Count}\tLength: {targetPath.LastOrDefault()?.Parameter}");
 
+				if (BeginTable("PATHTABLE", 5))
+				{
+					for (int i = 0; i < eyePath.Count; i++)
+					{
+						var e = eyePath[i];
+						var t = targetPath[i];
+						PushID($"{i}path");
+						TableNextRow();
+						TableNextColumn();
+						if (Selectable($"{i}", false, ImGuiSelectableFlags.SpanAllColumns))
+						{
+							ViewMatrixHook.Instance.DoCamControl += setCamPos;
+
+							void setCamPos(Matrix4x4* matrix, Vector3* eye, Vector3* target, Vector3* unk)
+							{
+								*eye = e.Point.ToVector3();
+								*target = t.Point.ToVector3();
+								*unk = Vector3.UnitY;
+							}
+
+						}
+						else if (IsWindowFocused() && IsItemHovered())
+						{
+							ViewMatrixHook.Instance.DoCamControl += setCamPos;
+
+							void setCamPos(Matrix4x4* matrix, Vector3* eye, Vector3* target, Vector3* unk)
+							{
+								*eye = e.Point.ToVector3();
+								*target = t.Point.ToVector3();
+								*unk = Vector3.UnitY;
+								ViewMatrixHook.Instance.DoCamControl -= setCamPos;
+							}
+
+						}
+
+
+						TableNextColumn();
+						TextUnformatted(e.Parameter.ToString("F4"));
+						TableNextColumn();
+						TextUnformatted(t.Parameter.ToString("F4"));
+						TableNextColumn();
+
+						PopID();
+					}
+
+
+
+
+
+					EndTable();
+				}
 
 				//DrawVector(axis, api.ClientState.LocalPlayer.Position, ImGuiColors.DalamudYellow);
 				//DrawVector(Vector3.Normalize(Vector3.Cross(axis, Vector3.UnitX)), api.ClientState.LocalPlayer.Position, ImGuiColors.DalamudRed);
@@ -191,26 +224,49 @@ namespace Saturn
 				DrawPath(eyePath, ImGuiColors.TankBlue, ImGuiColors.DalamudViolet, ImGuiColors.DalamudRed, out _currentEye);
 				DrawPath(targetPath, ImGuiColors.ParsedPurple, ImGuiColors.DalamudViolet, ImGuiColors.ParsedGreen, out _currentTarget);
 
-				if (!api.GameGui.GameUiHidden)
-				{
-					try
-					{
-						api.GameGui.WorldToScreen(_currentEye.Value, out var eye);
-						api.GameGui.WorldToScreen(_currentTarget.Value, out var target);
-						BDL.AddLine(eye, target, GetColorU32(ImGuiColors.DalamudYellow));
-					}
-					catch (Exception e)
-					{
+				//if (!api.GameGui.GameUiHidden)
+				//{
+				//	try
+				//	{
+				//		api.GameGui.WorldToScreen(_currentEye.Value, out var eye);
+				//		api.GameGui.WorldToScreen(_currentTarget.Value, out var target);
+				//		BDL.AddLine(eye, target, GetColorU32(ImGuiColors.DalamudYellow));
+				//	}
+				//	catch (Exception e)
+				//	{
 
-					}
-				}
+				//	}
+				//}
 			}
 			//ImGui.GetIO().WantCaptureKeyboard = false;
 			//ImGui.CaptureKeyboardFromApp(false);
 			End();
 		}
 
-		private float Aperture = 1;
+		public void CameraPathClear()
+		{
+			eyePath.Clear();
+			targetPath.Clear();
+		}
+
+		public void AddCurrentCamPositionToPath()
+		{
+			eyePath.Add(new PathKey3F
+			{
+				Parameter = eyePath.Count,
+				Interpolation = SplineInterpolation.CatmullRom,
+				Point = freecaming ? freeEye.ToVector3F() : ViewMatrixHook.Instance.Eye.ToVector3F(),
+			});
+			targetPath.Add(new PathKey3F
+			{
+				Parameter = targetPath.Count,
+				Interpolation = SplineInterpolation.CatmullRom,
+				Point = freecaming
+					? (freeEye + currentCamDirection * 500).ToVector3F()
+					: ViewMatrixHook.Instance.Target.ToVector3F(),
+			});
+		}
+
 		private bool ReceiveControl = true;
 		private unsafe void freecamControl()
 		{
@@ -246,14 +302,13 @@ namespace Saturn
 
 						if (IsKeyReleased((int)VirtualKey.C))
 						{
-							eyePath.Add(new PathKey3F { Parameter = eyePath.Count, Interpolation = SplineInterpolation.CatmullRom, Point = freecaming ? freeEye.ToVector3F() : ViewMatrixHook.Instance.Eye.ToVector3F() });
-							targetPath.Add(new PathKey3F { Parameter = eyePath.Count, Interpolation = SplineInterpolation.CatmullRom, Point = freecaming ? (freeEye + currentCamDirection * 10000).ToVector3F() : ViewMatrixHook.Instance.Target.ToVector3F() });
+							AddCurrentCamPositionToPath();
 						}
 
 						var delta = IsKeyDown((int)VirtualKey.SHIFT) ? currentCamDirection :
-							IsKeyDown((int)VirtualKey.CONTROL) ? currentCamDirection * 0.04f : currentCamDirection * 0.2f;
+							IsKeyDown((int)VirtualKey.MENU) ? currentCamDirection * 0.04f : currentCamDirection * 0.2f;
 						var deltaY = IsKeyDown((int)VirtualKey.SHIFT) ? Vector3.UnitY :
-							IsKeyDown((int)VirtualKey.CONTROL) ? Vector3.UnitY * 0.04f : Vector3.UnitY * 0.2f;
+							IsKeyDown((int)VirtualKey.MENU) ? Vector3.UnitY * 0.04f : Vector3.UnitY * 0.2f;
 
 
 						delta *= (float)(api.Framework.UpdateDelta.TotalMilliseconds / 16.6666666666667D);
@@ -263,8 +318,11 @@ namespace Saturn
 						if (IsKeyDown((int)VirtualKey.S)) freeEye -= delta;
 						if (IsKeyDown((int)VirtualKey.A)) freeEye -= Vector3.Cross(delta, Vector3.UnitY);
 						if (IsKeyDown((int)VirtualKey.D)) freeEye += Vector3.Cross(delta, Vector3.UnitY);
-						if (IsKeyDown((int)VirtualKey.E)) freeEye += deltaY;
-						if (IsKeyDown((int)VirtualKey.Q)) freeEye -= deltaY;
+						if (IsKeyDown((int)VirtualKey.R)) freeEye = api.ClientState.LocalPlayer?.Position ?? Vector3.Zero;
+						//if (IsKeyDown((int)VirtualKey.E)) freeEye += Vector3.Normalize(Vector3.Cross(delta, Vector3.Cross(delta, Vector3.UnitY)));
+						//if (IsKeyDown((int)VirtualKey.Q)) freeEye -= Vector3.Normalize(Vector3.Cross(delta, Vector3.Cross(delta, Vector3.UnitY)));
+						if (IsKeyDown((int)VirtualKey.SPACE)) freeEye += deltaY;
+						if (IsKeyDown((int)VirtualKey.CONTROL)) freeEye -= deltaY;
 
 						if (IsKeyDown((int)VirtualKey.ESCAPE))
 						{
@@ -274,18 +332,21 @@ namespace Saturn
 				}
 			}
 
+
 			End();
 		}
 
 
 		private ImDrawListPtr BDL => ImGui.GetBackgroundDrawList(ImGui.GetMainViewport());
+		private ImDrawListPtr FDL => ImGui.GetForegroundDrawList(ImGui.GetMainViewport());
+		private float correction = 0f;
 		private void DrawPath(Path3F path3F, Vector4 tankBlue, Vector4 dalamudViolet, Vector4 dalamudRed, out Vector3? currentValue)
 		{
 			currentValue = null;
 			if (path3F.Any())
 			{
 				var length = path3F.Last().Parameter;
-				var vector3F = path3F.GetPoint(QuickAnimation(speed) * length);
+				var vector3F = path3F.GetPoint((QuickAnimation(speed)) * length);
 				if (!api.GameGui.GameUiHidden)
 				{
 					foreach (var p in path3F)
@@ -293,12 +354,12 @@ namespace Saturn
 						DrawVector(p.Point.ToVector3(), tankBlue, 3.5f);
 					}
 
-					//var l = (int)length;
-					//for (int i = 0; i < l; i++)
-					//{
-					//	var point = path3F.GetPoint(length * i / l);
-					//	DrawVector(point.ToVector3(), dalamudViolet, 2);
-					//}
+					var l = (int)length;
+					for (int i = 0; i < l; i++)
+					{
+						var point = path3F.GetPoint(length * i / l);
+						DrawVector(point.ToVector3(), dalamudViolet, 2);
+					}
 
 					DrawVector(vector3F.ToVector3(), dalamudRed, 5);
 				}
@@ -307,38 +368,14 @@ namespace Saturn
 			}
 		}
 
+		public bool visible = true;
 		private unsafe void UiBuilder_Draw()
 		{
+			if (!visible) return;
+
 			DoF();
 			freecamControl();
 			PathWindow();
-			//im.SetNextWindowPos(new Vector2(200, 200), ImGuiCond.Appearing);
-			//if (im.Begin("arc"))
-			//{
-			//	im.SliderFloat("speed", ref speed, 0.1f, 10, speed.ToString(), ImGuiSliderFlags.Logarithmic | ImGuiSliderFlags.NoRoundToFormat);
-			//	im.SliderAngle("angle", ref radian, -360, 360);
-			//	im.SliderFloat3("axis", ref axis, -1, 1);
-			//	//if (api.TargetManager.Target is not null)
-			//	{
-			//		var valueInternal = QuickAnimation(speed);
-			//		im.TextUnformatted($"{valueInternal}");
-			//		var normalize = Vector3.Normalize(axis);
-			//		for (int i = 0; i < 16; i++)
-			//		{
-			//			var j = i / 16f;
-			//			var ret = Arc.CalculateValue(normalize, j + valueInternal);
-			//			drawVector(ret, api.ClientState.LocalPlayer?.Position ?? Vector3.Zero, ImGuiColors.DalamudRed);
-			//		}
-			//		drawVector(Arc.GetVerticalDir(normalize), api.ClientState.LocalPlayer?.Position ?? Vector3.Zero, ImGuiColors.HealerGreen);
-
-			//		var path3F = new Path3F();
-			//		path3F.Add(new PathKey3F(){Parameter = 0, Interpolation = SplineInterpolation.CatmullRom, Point = new Vector3F()});
-			//		new DigitalRune.Animation.Path3FAnimation(path3F).CreateInstance().Animation.
-			//	}
-			//}
-
-
-
 
 
 			if (Begin("Camera anim"))
@@ -386,8 +423,7 @@ namespace Saturn
 					//{
 					//	PluginLog.Error(e.ToString());
 					//}
-
-					ViewMatrixHook.Instance.DoCamControl += Instance_DoCamControl;
+					CameraBeginControl();
 				}
 
 				SameLine();
@@ -468,23 +504,36 @@ namespace Saturn
 				}
 			}
 
+
 			End();
 
-			//if (im.Begin("Cameras"))
-			//{
-			//	var cameraManager = Offsets.CameraManager;
-			//	var worldCamera = (*(IntPtr*)cameraManager);
-			//	var idleCamera = (*(IntPtr*)(cameraManager + 0x8));
-			//	var menuCamera = (*(IntPtr*)(cameraManager + 0x10));
-			//	var spectatorCamera = (*(IntPtr*)(cameraManager + 0x18));
-			//	CopyButton(cameraManager.ToInt64().ToString("X"), 1);
-			//	CopyButton(worldCamera.ToInt64().ToString("X"), 2);
-			//	CopyButton(idleCamera.ToInt64().ToString("X"), 3);
-			//	CopyButton(menuCamera.ToInt64().ToString("X"), 4);
-			//	CopyButton(spectatorCamera.ToInt64().ToString("X"), 5);
+			//Cameraswindow();
+		}
 
-			//	CopyButton(((delegate*<IntPtr>)Offsets.GetMatrixSingleton)().ToInt64().ToString("X"), 6);
-			//}
+		public void CameraBeginControl()
+		{
+			correction = QuickAnimation(speed);
+			ViewMatrixHook.Instance.DoCamControl += Instance_DoCamControl;
+		}
+
+		private static void Cameraswindow()
+		{
+			if (im.Begin("Cameras"))
+			{
+				var cameraManager = Offsets.CameraManager;
+				var worldCamera = (*(IntPtr*)cameraManager);
+				var idleCamera = (*(IntPtr*)(cameraManager + 0x8));
+				var menuCamera = (*(IntPtr*)(cameraManager + 0x10));
+				var spectatorCamera = (*(IntPtr*)(cameraManager + 0x18));
+				CopyButton(cameraManager.ToInt64().ToString("X"), 1);
+				CopyButton(worldCamera.ToInt64().ToString("X"), 2);
+				CopyButton(idleCamera.ToInt64().ToString("X"), 3);
+				CopyButton(menuCamera.ToInt64().ToString("X"), 4);
+				CopyButton(spectatorCamera.ToInt64().ToString("X"), 5);
+
+				CopyButton(ViewMatrixHook.Instance.MatrixPtr.ToInt64().ToString("X"), 7);
+				CopyButton(((delegate*<IntPtr>)Offsets.GetMatrixSingleton)().ToInt64().ToString("X"), 6);
+			}
 
 			End();
 		}
@@ -506,16 +555,17 @@ namespace Saturn
 				}
 
 
+				DragFloat3("UNK", ref DOF.Instance.DOFStructPtr->unkVector, 1f, 0.1f, 1000);
 				SliderFloat("NEAR", ref DOF.Instance.Near, 0, DOF.Instance.Mid);
 				SliderFloat("MID", ref DOF.Instance.Mid, DOF.Instance.Near, DOF.Instance.Far);
 				SliderFloat("FAR", ref DOF.Instance.Far, DOF.Instance.Mid, 100, DOF.Instance.Far.ToString("F3"), ImGuiSliderFlags.NoRoundToFormat | ImGuiSliderFlags.Logarithmic);
 
 				Spacing();
-				var changingFocalPlane = SliderFloat("FOCAL PLANE", ref DOF.Instance.Mid, 0.5f, 100, DOF.Instance.Mid.ToString(), ImGuiSliderFlags.NoRoundToFormat | ImGuiSliderFlags.Logarithmic);
-				if (changingFocalPlane | SliderFloat("APERTURE VALUE", ref Aperture, 0.001f, 1))
+				var changingFocalPlane = SliderFloat("FOCAL PLANE", ref DOF.Instance.Mid, 0.5f, 1000, DOF.Instance.Mid.ToString(), ImGuiSliderFlags.NoRoundToFormat | ImGuiSliderFlags.Logarithmic);
+				if (changingFocalPlane | SliderFloat("APERTURE VALUE", ref Config.Instance.Aperture, 0.001f, 1))
 				{
-					DOF.Instance.Near = DOF.Instance.Mid * Aperture;
-					DOF.Instance.Far = DOF.Instance.Mid / Aperture;
+					DOF.Instance.Near = DOF.Instance.Mid * Config.Instance.Aperture;
+					DOF.Instance.Far = DOF.Instance.Mid / Config.Instance.Aperture;
 				}
 
 				if (changingFocalPlane) Config.Instance.DOFAutoFocus = false;
@@ -524,9 +574,16 @@ namespace Saturn
 
 				if (Config.Instance.DOFAutoFocus)
 				{
-					DOF.Instance.Mid = ViewMatrixHook.Instance.LookAtDirection.Length();
-					DOF.Instance.Near = DOF.Instance.Mid * Aperture;
-					DOF.Instance.Far = DOF.Instance.Mid / Aperture;
+					if ((_currentEye != null && _currentTarget != null))
+					{
+						DOF.Instance.Mid = (_currentEye - _currentTarget).Value.Length();
+					}
+					else
+					{
+						DOF.Instance.Mid = ViewMatrixHook.Instance.LookAtDirection.Length();
+					}
+					DOF.Instance.Near = DOF.Instance.Mid * Config.Instance.Aperture;
+					DOF.Instance.Far = DOF.Instance.Mid / Config.Instance.Aperture;
 				}
 			}
 
@@ -568,6 +625,7 @@ namespace Saturn
 			var totalSeconds = DateTime.Now.TimeOfDay.TotalSeconds * speed;
 			return (float)(totalSeconds - (int)totalSeconds);
 		}
+
 
 		private static void CopyButton(string label, int id = 0)
 		{
@@ -625,39 +683,6 @@ namespace Saturn
 			easing.Update();
 
 			return easing.EasedPoint;
-		}
-	}
-
-	public static class imguiUtil
-	{
-		public static bool EnumCombo<TEnum>(string label, ref TEnum @enum, ImGuiComboFlags flags = ImGuiComboFlags.None) where TEnum : struct, Enum
-		{
-			bool ret = false;
-			if (BeginCombo(label, @enum.ToString(), flags))
-			{
-				var text = @enum.ToString();
-				var strings = Enum.GetNames<TEnum>();
-				for (var i = 0; i < strings.Length; i++)
-				{
-					try
-					{
-						PushID(i);
-						if (Selectable(strings[i], strings[i] == text))
-						{
-							ret = true;
-							@enum = Enum.GetValues<TEnum>()[i];
-						}
-						PopID();
-					}
-					catch (Exception e)
-					{
-						PluginLog.Error(e.ToString());
-					}
-				}
-				EndCombo();
-			}
-
-			return ret;
 		}
 	}
 }
